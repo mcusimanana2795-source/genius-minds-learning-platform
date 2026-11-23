@@ -18,3 +18,5 @@ This repository is configured for GitHub Pages using the workflow in `.github/wo
 This is an initial front-end MVP, not a secure production learning management system. Progress is saved in local browser storage on the current device only. It does not yet provide secure learner accounts, cloud synchronisation, a shared tutor database, conversational AI tutoring, or a fully verified CAPS/ATP curriculum. Sample content must be checked against the current relevant ATP before formal use. Browser voice narration uses the device's built-in text-to-speech voices.
 
 Do not enter real learner personal information into this public demonstration site.
+
+<!-- deployment refresh -->
