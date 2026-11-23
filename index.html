@@ -113,4 +113,63 @@ view('home');
  let nav=document.querySelector('.nav');if(nav&&!nav.querySelector('[data-view="classroom"]')){let b=document.createElement('button');b.dataset.view='classroom';b.textContent='▣ Google Classroom';b.onclick=()=>window.view('classroom');nav.appendChild(b)}
 })();
 </script>
+
+<style>/* GENIUS_MINDS_LESSON_STUDIO_V2 */
+.gm-studio-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.gm-studio-form{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}.gm-studio-form .wide{grid-column:1/-1}.gm-resource{border:1px solid var(--line);border-radius:12px;padding:14px;margin:10px 0;background:#fff}.gm-media{width:100%;max-height:360px;object-fit:contain;border-radius:10px;margin:12px 0;background:#f4f6f8}.gm-embed{width:100%;height:420px;border:1px solid var(--line);border-radius:10px;background:white}.gm-studio-actions{display:flex;gap:7px;flex-wrap:wrap}@media(max-width:700px){.gm-studio-grid,.gm-studio-form{grid-template-columns:1fr}.gm-studio-form .wide{grid-column:auto}}
+</style>
+<script>
+(function(){
+ const DBKEY='gm_assessment_v2';
+ const read=()=>{try{return JSON.parse(localStorage.getItem(DBKEY))||{}}catch(e){return {}}};
+ const write=d=>localStorage.setItem(DBKEY,JSON.stringify(d));
+ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const safeUrl=s=>{try{let u=new URL(String(s||''));return ['https:','http:'].includes(u.protocol)?u.href:''}catch(e){return ''}};
+ function embedUrl(raw){
+  let u=safeUrl(raw);if(!u)return '';
+  try{let x=new URL(u),h=x.hostname.toLowerCase();
+   if(h==='youtu.be')return 'https://www.youtube-nocookie.com/embed/'+x.pathname.slice(1);
+   if(h.endsWith('youtube.com')){let id=x.searchParams.get('v');if(x.pathname.startsWith('/embed/'))return u;if(id)return 'https://www.youtube-nocookie.com/embed/'+id}
+   if(h==='drive.google.com'){let m=x.pathname.match(/\/file\/d\/([^/]+)/);if(m)return 'https://drive.google.com/file/d/'+m[1]+'/preview'}
+   if(h==='docs.google.com'){let m=x.pathname.match(/\/(document|presentation|spreadsheets)\/d\/([^/]+)/);if(m)return 'https://docs.google.com/'+m[1]+'/d/'+m[2]+'/preview'}
+   return '';
+  }catch(e){return ''}
+ }
+ function addNav(){let nav=document.querySelector('.nav');if(!nav||nav.querySelector('[data-view="studio"]'))return;let b=document.createElement('button');b.dataset.view='studio';b.textContent='✎ Lesson studio';b.onclick=()=>window.view('studio');nav.appendChild(b)}
+ function renderStudio(editId){
+  let d=read();d.customCourses=d.customCourses||[];let editing=d.customCourses.find(x=>x.id===editId);
+  document.getElementById('app').innerHTML='<h2>Lesson studio</h2><p class="muted">Create and manage your own CAPS-aligned learning content. Add pictures, video, documents and links to support each concept.</p>'+
+  '<div class="card"><h3>'+(editing?'Edit lesson':'Create a lesson / concept')+'</h3><div class="gm-studio-form">'+
+  '<div><label>Grade</label><select id="stGrade">'+[3,4,5,6,7].map(n=>'<option '+(editing&&editing.grade===n?'selected':'')+'>'+n+'</option>').join('')+'</select></div>'+
+  '<div><label>Subject</label><input id="stSubject" style="width:100%" placeholder="e.g. Natural Sciences" value="'+esc(editing?.subject||'')+'"></div>'+
+  '<div><label>Term</label><select id="stTerm">'+[1,2,3,4].map(n=>'<option '+(editing&&editing.term===n?'selected':'')+'>'+n+'</option>').join('')+'</select></div>'+
+  '<div><label>Topic / concept title</label><input id="stTitle" style="width:100%" value="'+esc(editing?.concept||'')+'" placeholder="e.g. The water cycle"></div>'+
+  '<div class="wide"><label>Explanation / lesson notes</label><textarea id="stExplain" rows="4" style="width:100%" placeholder="Explain the concept clearly...">'+esc(editing?.explain||'')+'</textarea></div>'+
+  '<div class="wide"><label>Examples</label><textarea id="stExamples" rows="3" style="width:100%" placeholder="Add examples learners can study...">'+esc(editing?.examples||'')+'</textarea></div>'+
+  '<div class="wide"><label>Remember / key points</label><textarea id="stTip" rows="2" style="width:100%" placeholder="Important facts learners must remember...">'+esc(editing?.tip||'')+'</textarea></div>'+
+  '<div class="wide"><label>Picture URL (optional)</label><input id="stImage" style="width:100%" value="'+esc(editing?.imageUrl||'')+'" placeholder="https://..."></div>'+
+  '<div><label>Video URL (optional)</label><input id="stVideo" style="width:100%" value="'+esc(editing?.videoUrl||'')+'" placeholder="YouTube link"></div>'+
+  '<div><label>Document / worksheet URL (optional)</label><input id="stResource" style="width:100%" value="'+esc(editing?.resourceUrl||'')+'" placeholder="Google Drive or other link"></div>'+
+  '<div class="wide"><label>Embed lesson / resource URL (optional)</label><input id="stEmbed" style="width:100%" value="'+esc(editing?.embedUrl||'')+'" placeholder="YouTube, Google Docs, Slides or Drive preview link"></div></div>'+
+  '<p class="small muted">Google Classroom assignments and many Classroom pages block iframe embedding. Import them in the Google Classroom section; use their Open resource link there. You can embed supported YouTube, Google Docs, Slides and Drive preview links here.</p>'+
+  '<div class="gm-studio-actions"><button class="btn gold" id="stSave">'+(editing?'Update lesson':'Save lesson')+'</button>'+(editing?'<button class="btn light" id="stCancel">Cancel edit</button>':'')+'</div></div>'+
+  '<div class="row" style="margin-top:22px"><h3>Your lessons ('+d.customCourses.length+')</h3><span class="small muted">Saved in this browser</span></div>'+
+  (d.customCourses.length?d.customCourses.map(c=>'<div class="gm-resource"><div class="row"><span class="tag">GRADE '+c.grade+' • TERM '+c.term+'</span><div class="gm-studio-actions"><button class="btn light" data-edit="'+esc(c.id)+'">Edit</button><button class="btn light" data-delete="'+esc(c.id)+'">Delete</button></div></div><h3>'+esc(c.concept)+'</h3><p class="small muted">'+esc(c.subject)+'</p><p>'+esc(c.explain)+'</p>'+(c.imageUrl?'<img class="gm-media" src="'+esc(safeUrl(c.imageUrl))+'" alt="Lesson image" onerror="this.style.display=\'none\'">':'')+(c.videoUrl?'<p><a target="_blank" rel="noopener" href="'+esc(safeUrl(c.videoUrl))+'">Open lesson video</a></p>':'')+(c.resourceUrl?'<p><a target="_blank" rel="noopener" href="'+esc(safeUrl(c.resourceUrl))+'">Open worksheet / resource</a></p>':'')+(c.embedUrl?'<p class="small muted">Embedded resource added</p>':'')+'</div>').join(''):'<div class="notice">No custom lessons yet. Create your first lesson above.</div>');
+  document.getElementById('stSave').onclick=()=>{let c={id:editing?.id||('gm_'+Date.now()+'_'+Math.random().toString(36).slice(2,7)),grade:+document.getElementById('stGrade').value,subject:document.getElementById('stSubject').value.trim(),term:+document.getElementById('stTerm').value,concept:document.getElementById('stTitle').value.trim(),explain:document.getElementById('stExplain').value.trim(),examples:document.getElementById('stExamples').value.trim(),tip:document.getElementById('stTip').value.trim(),imageUrl:safeUrl(document.getElementById('stImage').value),videoUrl:safeUrl(document.getElementById('stVideo').value),resourceUrl:safeUrl(document.getElementById('stResource').value),embedUrl:safeUrl(document.getElementById('stEmbed').value)};
+   if(!c.subject||!c.concept||!c.explain||!c.examples||!c.tip)return alert('Complete the grade, subject, term, title, explanation, examples and key points.');
+   if(editing){let i=d.customCourses.findIndex(x=>x.id===editing.id);d.customCourses[i]=c}else d.customCourses.push(c);write(d);renderStudio();alert(editing?'Lesson updated.':'Lesson saved successfully. It is now in your learning library on this device.');
+  };
+  if(editing)document.getElementById('stCancel').onclick=()=>renderStudio();
+  document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>renderStudio(b.dataset.edit));
+  document.querySelectorAll('[data-delete]').forEach(b=>b.onclick=()=>{if(!confirm('Delete this lesson? Existing assessment records will remain.'))return;let z=read();z.customCourses=(z.customCourses||[]).filter(x=>x.id!==b.dataset.delete);write(z);renderStudio()});
+ }
+ const originalConcepts=window.concepts;
+ if(typeof originalConcepts==='function')window.concepts=function(){let d=read();return originalConcepts().concat((d.customCourses||[]))};
+ const originalRender=window.renderLesson;
+ if(typeof originalRender==='function')window.renderLesson=function(){originalRender();if(!window.current)return;let c=window.current;let area=document.getElementById('lessonText');if(!area)return;
+  let extra='';if(c.imageUrl&&safeUrl(c.imageUrl))extra+='<img class="gm-media" src="'+esc(safeUrl(c.imageUrl))+'" alt="Lesson illustration" onerror="this.style.display=\'none\'">';if(c.videoUrl&&safeUrl(c.videoUrl))extra+='<p><a target="_blank" rel="noopener" href="'+esc(safeUrl(c.videoUrl))+'">▶ Watch lesson video</a></p>';if(c.resourceUrl&&safeUrl(c.resourceUrl))extra+='<p><a target="_blank" rel="noopener" href="'+esc(safeUrl(c.resourceUrl))+'">Open worksheet / learning resource</a></p>';let e=embedUrl(c.embedUrl);if(e)extra+='<h3>Embedded learning resource</h3><iframe class="gm-embed" src="'+esc(e)+'" loading="lazy" allowfullscreen></iframe>';if(extra)area.insertAdjacentHTML('beforeend',extra);
+ };
+ const oldView=window.view;window.view=function(v){if(v==='studio'){document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.view==='studio'));document.getElementById('pageTitle').textContent='Lesson studio';renderStudio()}else oldView(v)};
+ addNav();setTimeout(addNav,500);
+})();
+</script>
 </body></html>
