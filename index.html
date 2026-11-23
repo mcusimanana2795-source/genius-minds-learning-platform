@@ -86,7 +86,7 @@ view('home');
  const scopes=['https://www.googleapis.com/auth/classroom.courses.readonly','https://www.googleapis.com/auth/classroom.coursework.students.readonly','https://www.googleapis.com/auth/classroom.courseworkmaterials.readonly'].join(' ');
  const getDB=()=>{try{return JSON.parse(localStorage.getItem(KEY))||{}}catch(e){return {}}};
  const saveDB=d=>localStorage.setItem(KEY,JSON.stringify(d));
- const config=()=>{try{return JSON.parse(localStorage.getItem(CFG))||{}}catch(e){return {}}};
+ const config=()=>{try{return {clientId:'432840729711-6pan9f05r0gcr5o4fvhd6agcd3t904e7.apps.googleusercontent.com',...(JSON.parse(localStorage.getItem(CFG))||{})}}catch(e){return {clientId:'432840729711-6pan9f05r0gcr5o4fvhd6agcd3t904e7.apps.googleusercontent.com'}}};
  const saveConfig=c=>localStorage.setItem(CFG,JSON.stringify(c));
  const safe=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  function loadGoogle(){return new Promise((resolve,reject)=>{if(window.google&&google.accounts&&google.accounts.oauth2)return resolve();let s=document.querySelector('script[data-gm-gis]');if(!s){s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.async=true;s.defer=true;s.dataset.gmGis='1';document.head.appendChild(s)}s.onload=()=>resolve();s.onerror=()=>reject(Error('Google sign-in library could not load. Check your internet connection.'))})}
