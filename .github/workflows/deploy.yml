@@ -1,7 +1,5 @@
 name: Deploy Genius Minds to GitHub Pages
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
@@ -26,7 +24,7 @@ jobs:
       - name: Upload site
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: docs
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
