@@ -55,7 +55,153 @@ function teacher(){let all=db.attempts,learners=[...new Set(all.map(a=>a.learner
 function settings(){app.innerHTML=`<h2>Assessment settings</h2><div class="card"><h3>Mastery threshold</h3><p class="muted">Initial default: 70%. Change this to set the percentage required to mark a concept mastered.</p><label>Mastery percentage</label><input id="threshold" type="number" min="1" max="100" value="${db.threshold}"><button class="btn gold" style="margin-top:12px" onclick="saveSettings()">Save threshold</button></div><div class="card" style="margin-top:14px"><h3>South African percentage grading scale (editable initial model)</h3><p class="muted">A configurable demonstration scale. Confirm the applicable school/grade policy before formal reporting.</p><div class="table-wrap"><table><tr><th>Minimum percentage</th><th>Achievement grade</th><th>Description</th></tr>${db.scale.map(x=>`<tr><td>${x.min}%</td><td>${x.grade}</td><td>${x.label||''}</td></tr>`).join('')}</table></div></div><div class="notice">For official school reporting, Genius Minds should configure the scale to the relevant assessment policy and grade. This starter scale is not a claim that one grading band applies universally.</div><button class="btn light" onclick="if(confirm('Clear all demo assessment data on this device?')){db.attempts=[];db.mastery={};save();view('home')}">Clear demo data on this device</button>`}
 function saveSettings(){let v=+document.getElementById('threshold').value;if(v<1||v>100||!Number.isFinite(v)){alert('Enter a percentage between 1 and 100.');return}db.threshold=v;save();alert('Mastery threshold saved.');view('settings')}
 function exportCSV(){let rows=[['Learner','Grade','Subject','Term','Topic / concept','Mark achieved','Total marks','Percentage','Achievement grade','Attempt','Date','Written review required'],...db.attempts.map(a=>[a.learner,a.grade,a.subject,a.term,a.concept,a.score,a.max,a.percent,a.gradeBand,a.attempt,new Date(a.date).toLocaleString(),a.needsReview?'Yes':'No'])];let csv=rows.map(r=>r.map(x=>'"'+String(x??'').replaceAll('"','""')+'"').join(',')).join('\n');let url=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'}));let a=document.createElement('a');a.href=url;a.download='genius-minds-assessment-marks.csv';a.click();URL.revokeObjectURL(url)}
-function printTutorResults(){let rows=db.attempts.slice().reverse().map(a=>'<tr><td>'+String(a.learner).replace(/[&<>]/g,'')+'</td><td>Grade '+a.grade+'</td><td>'+String(a.subject).replace(/[&<>]/g,'')+'</td><td>T'+a.term+'</td><td>'+String(a.concept).replace(/[&<>]/g,'')+'</td><td>'+a.score+'/'+a.max+'</td><td>'+a.percent+'%</td><td>'+a.gradeBand+'</td><td>'+new Date(a.date).toLocaleDateString()+'</td></tr>').join('');let w=window.open('','_blank');if(!w)return alert('Please allow pop-ups to print the results report.');w.document.write('<html><head><title>Genius Minds Assessment Report</title><style>body{font:12px Arial;padding:24px}h1{color:#142b46}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:7px;text-align:left}th{background:#eee}</style></head><body><h1>Genius Minds – Assessment Marks</h1><p>Generated '+new Date().toLocaleString()+'</p><table><tr><th>Learner</th><th>Grade</th><th>Subject</th><th>Term</th><th>Concept</th><th>Mark</th><th>%</th><th>Grade</th><th>Date</th></tr>'+rows+'</table><script>window.onload=function(){window.print()}<\\/script></body></html>');w.document.close()}
+function printTutorResults(){let rows=db.attempts.slice().reverse().map(a=>'<tr><td>'+String(a.learner).replace(/[&<>]/g,'')+'</td><td>Grade '+a.grade+'</td><td>'+String(a.subject).replace(/[&<>]/g,'')+'</td><td>T'+a.term+'</td><td>'+String(a.concept).replace(/[&<>]/g,'')+'</td><td>'+a.score+'/'+a.max+'</td><td>'+a.percent+'%</td><td>'+a.gradeBand+'</td><td>'+new Date(a.date).toLocaleDateString()+'</td></tr>').join('');let w=window.open('','_blank');if(!w)return alert('Please allow pop-ups to print the results report.');w.document.write('<html><head><title>Genius Minds Assessment Report</title><style>body{font:12px Arial;padding:24px}h1{color:#142b46}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:7px;text-align:left}th{background:#eee}</style></head><body><h1>Genius Minds – Assessment Marks</h1><p>Generated '+new Date().toLocaleString()+'</p><table><tr><th>Learner</th><th>Grade</th><th>Subject</th><th>Term</th><th>Concept</th><th>Mark</th><th>%</th><th>Grade</th><th>Date</th></tr>'+rows+'</table><script>window.onload=function(){window.print()}<\\/script>
+<script>
+/* Genius Minds Interactive Learning Engine v1 */
+(function(){
+ const $=id=>document.getElementById(id);
+ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const safe=s=>{try{let u=new URL(String(s||''));return ['https:','http:'].includes(u.protocol)?u.href:''}catch(e){return ''}};
+ let studioEdit=null, slideDraft=[], playerIndex=0, playerSlideQuiz={};
+ const readDB=()=>{try{return JSON.parse(localStorage.getItem('gm_assessment_v2'))||{}}catch(e){return {}}};
+ const writeDB=d=>{localStorage.setItem('gm_assessment_v2',JSON.stringify(d));if(typeof db!=='undefined')db=d};
+ const subjects=['Afrikaans FAL','English','Mathematics','Natural Sciences','Social Sciences','Life Skills','EMS','Technology','Creative Arts','Other'];
+ function defaultSlides(c){
+  const lang=/afrikaans/i.test(c.subject)?'af-ZA':'en-ZA';
+  return [
+   {title:'Let us get started',body:'In this lesson, we are learning about '+c.concept+'. By the end, you should be able to explain the idea and use it in an example.',narration:'Welcome. In this lesson, we are learning about '+c.concept+'. Listen carefully and take your time.',language:lang},
+   {title:'Understand the concept',body:c.explain||'Read the explanation carefully.',narration:c.explain||c.concept,language:lang},
+   {title:'Look at the examples',body:c.examples||'Think of an example of this concept.',narration:'Here are some examples. '+(c.examples||''),language:lang},
+   {title:'Remember this',body:c.tip||'Explain the key idea in your own words.',narration:'Remember. '+(c.tip||''),language:lang},
+   {title:'Check your understanding',body:'Before you continue, think about the main idea. Then complete the assessment for this lesson.',narration:'You have reached the end of the explanation. Complete the assessment when you are ready.',language:lang}
+  ];
+ }
+ function setNav(){
+  let nav=document.querySelector('.nav');if(!nav)return;
+  let b=nav.querySelector('[data-view="studio"]');
+  if(!b){b=document.createElement('button');b.dataset.view='studio';b.textContent='✎ Lesson studio';nav.appendChild(b)}
+  b.onclick=()=>window.view('studio');
+ }
+ function stopVoice(){try{speechSynthesis.cancel()}catch(e){}document.querySelectorAll('.gm-audio').forEach(a=>{try{a.pause()}catch(e){}})}
+ window.gmSpeakSlide=function(i){
+  let c=current,slides=(c.slides&&c.slides.length?c.slides:defaultSlides(c)),s=slides[i];if(!s)return;
+  stopVoice();
+  if(s.audioUrl){let a=$('gmSlideAudio');if(a){a.src=safe(s.audioUrl);a.play().catch(()=>alert('Press play on the audio player to hear this recording.'));return}}
+  if(!('speechSynthesis'in window)){alert('Audio narration is not supported in this browser.');return}
+  let text=s.narration||s.body||s.title,u=new SpeechSynthesisUtterance(text);
+  u.lang=s.language||(/afrikaans/i.test(c.subject)?'af-ZA':'en-ZA');u.rate=.9;
+  speechSynthesis.speak(u);
+ };
+ function renderPlayer(){
+  if(!current)return;stopVoice();
+  let c=current,slides=c.slides&&c.slides.length?c.slides:defaultSlides(c);
+  playerIndex=Math.max(0,Math.min(playerIndex,slides.length-1));
+  let s=slides[playerIndex],img=safe(s.imageUrl||c.imageUrl),video=safe(s.videoUrl||c.videoUrl);
+  let activity=s.activity||null,actHtml='';
+  if(activity&&activity.prompt){
+   actHtml='<div class="gm-activity"><div class="gm-kicker">YOUR TURN</div><h3>'+esc(activity.prompt)+'</h3>'+
+    (activity.options&&activity.options.length?activity.options.map((o,j)=>'<button class="gm-choice" onclick="gmCheckSlideAnswer('+j+')">'+esc(o)+'</button>').join(''):'<button class="btn light" onclick="document.getElementById(\'gm-reveal\').classList.toggle(\'hidden\')">Reveal a helpful hint</button><p id="gm-reveal" class="hidden">'+esc(activity.feedback||'Review the explanation and try again.')+'</p>')+
+    '<div id="gm-slide-feedback" class="gm-slide-feedback" aria-live="polite"></div></div>';
+  }
+  $('app').innerHTML='<div class="gm-player-wrap"><div class="gm-player-top"><button class="btn light" onclick="stopVoice();view(\'learn\')">← Learning library</button><span class="gm-kicker">GENIUS MINDS INTERACTIVE LESSON</span><span class="tag">GRADE '+c.grade+' • '+esc(c.subject)+' • TERM '+c.term+'</span></div>'+
+   '<div class="gm-player"><div class="gm-slide-count">SLIDE '+(playerIndex+1)+' OF '+slides.length+'</div><div class="gm-progress"><span style="width:'+((playerIndex+1)/slides.length*100)+'%"></span></div>'+
+   '<div class="gm-slide-grid"><section class="gm-slide-copy"><div class="gm-kicker">'+esc(c.subject)+' • GRADE '+c.grade+'</div><h1>'+esc(s.title||c.concept)+'</h1><div class="gm-slide-body">'+esc(s.body||'').replace(/\n/g,'<br>')+'</div>'+
+   (s.examples?'<div class="gm-slide-example"><b>Example</b><br>'+esc(s.examples)+'</div>':'')+
+   (s.keyPoint?'<div class="gm-slide-tip"><b>Remember</b><br>'+esc(s.keyPoint)+'</div>':'')+
+   (video?'<p><a href="'+esc(video)+'" target="_blank" rel="noopener">▶ Open supporting video</a></p>':'')+
+   '</section><section class="gm-slide-visual">'+(img?'<img src="'+esc(img)+'" alt="Lesson visual" onerror="this.style.display=\'none\'">':'<div class="gm-visual-placeholder"><div class="gm-orbit">GM</div><b>See it. Hear it. Understand it.</b><span>Interactive learning</span></div>')+
+   (s.embedUrl&&safe(s.embedUrl)?'<iframe src="'+esc(s.embedUrl)+'" title="Lesson resource" allowfullscreen loading="lazy"></iframe>':'')+'</section></div>'+
+   actHtml+
+   '<div class="gm-narration"><div><span class="gm-sound">♫</span><span><b>Lesson narration</b><small>'+(s.audioUrl?'Recorded voice-over':'Computer voice narration')+' • '+esc(s.language||'en-ZA')+'</small></span></div><div class="gm-narration-actions">'+(s.audioUrl?'<audio id="gmSlideAudio" class="gm-audio" controls preload="none" src="'+esc(safe(s.audioUrl))+'"></audio>':'')+'<button class="btn gold" onclick="gmSpeakSlide('+playerIndex+')">▶ Play narration</button><button class="btn light" onclick="stopVoice()">Ⅱ Stop</button></div></div>'+
+   '<div class="gm-player-bottom"><button class="btn light" '+(playerIndex===0?'disabled':'')+' onclick="gmGoSlide(-1)">← Previous</button><span class="muted small">Move through the lesson at your own pace</span><button class="btn gold" onclick="gmGoSlide(1)">'+(playerIndex===slides.length-1?'Finish lesson':'Next slide →')+'</button></div></div>'+
+   '<div class="gm-below-player"><div><b>'+esc(c.concept)+'</b><p class="muted small">Your progress is saved locally on this device. Complete the assessment to record your mark.</p></div><button class="btn gold" onclick="startTest()">Start lesson assessment →</button></div></div>';
+ }
+ window.gmGoSlide=function(delta){
+  let slides=current.slides&&current.slides.length?current.slides:defaultSlides(current);
+  if(playerIndex+delta>=slides.length){stopVoice();if(confirm('You have reached the end of this lesson. Would you like to start the assessment now?'))startTest();return}
+  playerIndex=Math.max(0,Math.min(slides.length-1,playerIndex+delta));renderPlayer();
+ };
+ window.gmCheckSlideAnswer=function(index){
+  let a=current.slides?.[playerIndex]?.activity,box=$('gm-slide-feedback');if(!a||!box)return;
+  let ok=index===Number(a.correct);
+  box.className='gm-slide-feedback '+(ok?'gm-correct':'gm-incorrect');
+  box.textContent=ok?(a.feedback||'Correct! Well done.'):(a.tryAgain||'Not quite. Review the slide and try again.');
+  if(ok)document.querySelectorAll('.gm-choice').forEach(b=>b.disabled=true);
+ };
+ window.renderLesson=function(){playerIndex=0;playerSlideQuiz={};renderPlayer()};
+ window.speak=function(text){if(!('speechSynthesis'in window))return alert('Voice narration is not supported.');stopVoice();let u=new SpeechSynthesisUtterance(text);u.lang=/\b(die|en|nie|hond|boek|skool)\b/i.test(text)?'af-ZA':'en-ZA';u.rate=.9;speechSynthesis.speak(u)};
+ function slideEditor(s,i){
+  return '<div class="gm-slide-editor" data-slide="'+i+'"><div class="row"><b>Slide '+(i+1)+'</b><button type="button" class="btn light gm-remove-slide">Remove slide</button></div>'+
+   '<label>Slide heading</label><input class="gm-s-title" style="width:100%" value="'+esc(s.title||'')+'" placeholder="e.g. What is a habitat?">'+
+   '<label>Explanation / on-screen text</label><textarea class="gm-s-body" rows="3" style="width:100%" placeholder="Write what learners should see...">'+esc(s.body||'')+'</textarea>'+
+   '<label>Voice-over script</label><textarea class="gm-s-narration" rows="3" style="width:100%" placeholder="Write exactly what the narrator should say...">'+esc(s.narration||'')+'</textarea>'+
+   '<div class="gm-editor-grid"><div><label>Narration language</label><select class="gm-s-language"><option value="en-ZA" '+((s.language||'en-ZA')==='en-ZA'?'selected':'')+'>English (South Africa)</option><option value="af-ZA" '+(s.language==='af-ZA'?'selected':'')+'>Afrikaans (South Africa)</option></select></div><div><label>Image URL (optional)</label><input class="gm-s-image" style="width:100%" value="'+esc(s.imageUrl||'')+'" placeholder="https://..."></div></div>'+
+   '<label>Recorded audio URL (optional — overrides generated narration)</label><input class="gm-s-audio" style="width:100%" value="'+esc(s.audioUrl||'')+'" placeholder="Link to an MP3 or audio file">'+
+   '<label>Examples (optional)</label><textarea class="gm-s-examples" rows="2" style="width:100%">'+esc(s.examples||'')+'</textarea>'+
+   '<label>Key point (optional)</label><textarea class="gm-s-key" rows="2" style="width:100%">'+esc(s.keyPoint||'')+'</textarea>'+
+   '<details class="gm-activity-builder"><summary>＋ Add an interactive activity to this slide</summary><label>Question / activity prompt</label><input class="gm-a-prompt" style="width:100%" value="'+esc(s.activity?.prompt||'')+'" placeholder="e.g. Which object is living?">'+
+   '<label>Answer options (separate with | )</label><input class="gm-a-options" style="width:100%" value="'+esc((s.activity?.options||[]).join(' | '))+'" placeholder="Tree | Rock | Chair">'+
+   '<label>Correct option number (1, 2, 3...)</label><input class="gm-a-correct" type="number" min="1" style="width:110px" value="'+(s.activity?.correct!==undefined?Number(s.activity.correct)+1:1)+'">'+
+   '<label>Feedback after answer</label><input class="gm-a-feedback" style="width:100%" value="'+esc(s.activity?.feedback||'Correct!')+'">'+
+   '<label>Hint if incorrect</label><input class="gm-a-retry" style="width:100%" value="'+esc(s.activity?.tryAgain||'Try again. Think about the explanation.')+'"></details></div>';
+ }
+ function collectSlides(){
+  return [...document.querySelectorAll('.gm-slide-editor')].map(el=>{
+   let val=cl=>el.querySelector(cl)?.value.trim()||'',opts=val('.gm-a-options').split('|').map(x=>x.trim()).filter(Boolean),prompt=val('.gm-a-prompt'),activity=null;
+   if(prompt){let n=Math.max(1,Number(val('.gm-a-correct')||1));activity={prompt,options:opts,correct:n-1,feedback:val('.gm-a-feedback'),tryAgain:val('.gm-a-retry')}}
+   return {title:val('.gm-s-title'),body:val('.gm-s-body'),narration:val('.gm-s-narration'),language:val('.gm-s-language')||'en-ZA',imageUrl:safe(val('.gm-s-image')),audioUrl:safe(val('.gm-s-audio')),examples:val('.gm-s-examples'),keyPoint:val('.gm-s-key'),activity};
+  });
+ }
+ function renderStudio(editId){
+  let d=readDB();d.customCourses=d.customCourses||[];studioEdit=editId||null;
+  let c=d.customCourses.find(x=>x.id===editId),slides=c?.slides?.length?c.slides:defaultSlides(c||{grade:3,subject:'',concept:'Your lesson',explain:'',examples:'',tip:''});
+  slideDraft=slides.map(x=>({...x}));
+  let list=d.customCourses.map(x=>'<div class="gm-resource"><div class="row"><span class="tag">GRADE '+x.grade+' • TERM '+x.term+'</span><div class="actions"><button class="btn light" data-gm-edit="'+esc(x.id)+'">Edit</button><button class="btn light" data-gm-delete="'+esc(x.id)+'">Delete</button></div></div><h3>'+esc(x.concept)+'</h3><p class="muted small">'+esc(x.subject)+' • '+(x.slides?.length||0)+' interactive slides • '+(x.assessment?.length||0)+' assessment questions</p><button class="btn gold" data-gm-preview="'+esc(x.id)+'">Preview lesson</button></div>').join('');
+  $('app').innerHTML='<div class="gm-studio-head"><div><div class="gm-kicker">CONTENT CREATION WORKSPACE</div><h1>Interactive Lesson Studio</h1><p class="muted">Build narrated, slide-by-slide lessons for any Grade 3–7 subject.</p></div><span class="tag">CAPS / ATP READY</span></div>'+
+   '<div class="card gm-studio-card"><h2>'+(c?'Edit interactive lesson':'Create a new interactive lesson')+'</h2><div class="gm-editor-grid">'+
+   '<div><label>Grade</label><select id="gm-grade">'+[3,4,5,6,7].map(n=>'<option '+(c?.grade===n?'selected':'')+'>'+n+'</option>').join('')+'</select></div>'+
+   '<div><label>Subject</label><input id="gm-subject" list="gm-subject-list" style="width:100%" value="'+esc(c?.subject||'')+'" placeholder="Choose or type a subject"><datalist id="gm-subject-list">'+subjects.map(x=>'<option value="'+x+'">').join('')+'</datalist></div>'+
+   '<div><label>Term</label><select id="gm-term">'+[1,2,3,4].map(n=>'<option '+(c?.term===n?'selected':'')+'>'+n+'</option>').join('')+'</select></div>'+
+   '<div><label>Lesson / concept title</label><input id="gm-title" style="width:100%" value="'+esc(c?.concept||'')+'" placeholder="e.g. The water cycle"></div>'+
+   '</div><div class="gm-slides-header"><div><h3>Lesson presentation</h3><p class="muted small">Each slide can have visuals, narration and an interactive activity.</p></div><button class="btn gold" id="gm-add-slide">＋ Add slide</button></div>'+
+   '<div id="gm-slide-list">'+slideDraft.map(slideEditor).join('')+'</div>'+
+   '<div class="card gm-assessment-builder"><h3>End-of-lesson assessment</h3><p class="muted small">These questions are automatically marked and linked to My Results and the tutor dashboard.</p><div id="gm-assessment-list">'+(c?.assessment||[]).map((q,i)=>'<div class="gm-question-editor"><b>Question '+(i+1)+'</b><input class="gm-q-text" style="width:100%" value="'+esc(q.q)+'" placeholder="Question"><input class="gm-q-options" style="width:100%" value="'+esc(q.opts.join(' | '))+'" placeholder="Answer options separated by |"><label>Correct answer number</label><input class="gm-q-correct" type="number" min="1" value="'+(q.a+1)+'" style="width:100px"><button class="btn light gm-remove-question" type="button">Remove question</button></div>').join('')+'</div><button class="btn light" id="gm-add-question">＋ Add assessment question</button></div>'+
+   '<div class="actions" style="margin-top:18px"><button class="btn gold" id="gm-save">'+(c?'Save changes':'Publish lesson to learning library')+'</button><button class="btn light" id="gm-preview-draft">Preview presentation</button>'+(c?'<button class="btn light" id="gm-cancel">Cancel</button>':'')+'</div></div>'+
+   '<div class="row" style="margin-top:24px"><h2>Your interactive lessons</h2><span class="muted small">'+d.customCourses.length+' created</span></div>'+(list||'<div class="notice">Your created lessons will appear here.</div>');
+  $('gm-add-slide').onclick=()=>{let draft=collectSlides();draft.push({title:'New slide',body:'',narration:'',language:'en-ZA'});$('gm-slide-list').innerHTML=draft.map(slideEditor).join('');bindSlideRemovers()};
+  function bindSlideRemovers(){document.querySelectorAll('.gm-remove-slide').forEach(b=>b.onclick=()=>{let draft=collectSlides();draft.splice(Number(b.closest('.gm-slide-editor').dataset.slide),1);$('gm-slide-list').innerHTML=draft.map(slideEditor).join('');bindSlideRemovers()})}
+  bindSlideRemovers();
+  $('gm-add-question').onclick=()=>{let box=$('gm-assessment-list'),n=box.querySelectorAll('.gm-question-editor').length+1,el=document.createElement('div');el.className='gm-question-editor';el.innerHTML='<b>Question '+n+'</b><input class="gm-q-text" style="width:100%" placeholder="Question"><input class="gm-q-options" style="width:100%" placeholder="Answer options separated by |"><label>Correct answer number</label><input class="gm-q-correct" type="number" min="1" value="1" style="width:100px"><button type="button" class="btn light gm-remove-question">Remove question</button>';box.appendChild(el);el.querySelector('button').onclick=()=>el.remove()};
+  document.querySelectorAll('.gm-remove-question').forEach(b=>b.onclick=()=>b.closest('.gm-question-editor').remove());
+  $('gm-save').onclick=()=>{
+   let slideData=collectSlides(),assessment=[...document.querySelectorAll('.gm-question-editor')].map(el=>{let opts=el.querySelector('.gm-q-options').value.split('|').map(x=>x.trim()).filter(Boolean),a=Number(el.querySelector('.gm-q-correct').value||1)-1;return {type:'mcq',q:el.querySelector('.gm-q-text').value.trim(),opts,a,why:'Review the interactive lesson slides and explanations.'}});
+   if(!$('gm-subject').value.trim()||!$('gm-title').value.trim())return alert('Add a subject and lesson title.');
+   if(!slideData.length||slideData.some(x=>!x.title||(!x.body&&!x.narration)))return alert('Each slide needs a heading and on-screen explanation or narration.');
+   if(slideData.some(x=>x.activity&&x.activity.options.length&&(!x.activity.prompt||x.activity.correct<0||x.activity.correct>=x.activity.options.length)))return alert('Check each interactive activity: add a prompt and a valid correct option number.');
+   if(assessment.some(q=>!q.q||q.opts.length<2||q.a<0||q.a>=q.opts.length))return alert('Each assessment question needs a prompt, at least two options and a valid correct answer.');
+   let data=readDB();data.customCourses=data.customCourses||[];
+   let item={id:c?.id||('gm_'+Date.now()+'_'+Math.random().toString(36).slice(2,7)),grade:+$('gm-grade').value,subject:$('gm-subject').value.trim(),term:+$('gm-term').value,concept:$('gm-title').value.trim(),explain:slideData.map(x=>x.body).filter(Boolean).join('\n\n'),examples:slideData.map(x=>x.examples).filter(Boolean).join('; '),tip:slideData.map(x=>x.keyPoint).filter(Boolean).join('; '),slides:slideData,assessment};
+   if(c){let i=data.customCourses.findIndex(x=>x.id===c.id);data.customCourses[i]=item}else data.customCourses.push(item);
+   writeDB(data);alert('Interactive lesson saved. It is now available in the learning library on this device.');renderStudio();
+  };
+  $('gm-preview-draft').onclick=()=>{let draft=collectSlides();if(!draft.length)return alert('Add at least one slide.');current={grade:+$('gm-grade').value,subject:$('gm-subject').value||'Preview',term:+$('gm-term').value,concept:$('gm-title').value||'Lesson preview',explain:'',examples:'',tip:'',slides:draft,assessment:[]};playerIndex=0;renderPlayer()};
+  if($('gm-cancel'))$('gm-cancel').onclick=()=>renderStudio();
+  document.querySelectorAll('[data-gm-edit]').forEach(b=>b.onclick=()=>renderStudio(b.dataset.gmEdit));
+  document.querySelectorAll('[data-gm-delete]').forEach(b=>b.onclick=()=>{if(!confirm('Delete this lesson? Existing assessment results will remain.'))return;let data=readDB();data.customCourses=(data.customCourses||[]).filter(x=>x.id!==b.dataset.gmDelete);writeDB(data);renderStudio()});
+  document.querySelectorAll('[data-gm-preview]').forEach(b=>b.onclick=()=>{let x=readDB().customCourses.find(y=>y.id===b.dataset.gmPreview);if(x){current=x;playerIndex=0;renderPlayer()}});
+ }
+ let priorView=window.view;
+ window.view=function(v){
+  if(v==='studio'){stopVoice();document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.view==='studio'));$('pageTitle').textContent='Interactive Lesson Studio';renderStudio();return}
+  stopVoice();priorView(v);
+ };
+ setNav();setTimeout(setNav,300);
+ const css=`
+ .gm-player-wrap{max-width:1050px;margin:0 auto}.gm-player-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px}.gm-kicker{font-size:11px;font-weight:850;letter-spacing:1.4px;color:#98712d}.gm-player{background:#fff;border:1px solid var(--line);border-radius:20px;padding:clamp(16px,3vw,30px);box-shadow:0 12px 35px #142b4610}.gm-slide-count{font-size:11px;color:var(--muted);font-weight:800;letter-spacing:1px}.gm-progress{height:7px;background:#e9edf2;border-radius:20px;overflow:hidden;margin:10px 0 28px}.gm-progress span{display:block;height:100%;background:var(--gold);transition:width .2s}.gm-slide-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:28px;align-items:center;min-height:300px}.gm-slide-copy h1{font-size:clamp(28px,4vw,43px);line-height:1.12;color:var(--navy);margin:12px 0 18px}.gm-slide-body{font-size:18px;line-height:1.75;white-space:normal}.gm-slide-example,.gm-slide-tip{background:#f4f7fa;border-left:4px solid var(--gold);border-radius:10px;padding:14px;margin-top:16px}.gm-slide-tip{background:#fff8e9}.gm-slide-visual{min-height:250px;border-radius:16px;background:linear-gradient(145deg,#142b46,#2d5274);display:flex;align-items:center;justify-content:center;flex-direction:column;overflow:hidden;color:white;padding:14px;gap:12px}.gm-slide-visual img{width:100%;max-height:330px;object-fit:contain;border-radius:10px;background:#fff}.gm-slide-visual iframe{width:100%;height:230px;border:0;border-radius:10px}.gm-visual-placeholder{text-align:center;display:flex;align-items:center;flex-direction:column;gap:10px}.gm-orbit{width:92px;height:92px;border-radius:50%;background:var(--gold);color:var(--navy);display:grid;place-items:center;font-size:30px;font-weight:900;box-shadow:0 0 0 14px #ffffff18}.gm-visual-placeholder span{color:#d5e1eb;font-size:12px}.gm-narration{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:#f4f6f9;border-radius:12px;padding:13px 15px;margin-top:24px}.gm-narration>div:first-child{display:flex;gap:10px;align-items:center}.gm-narration small{display:block;color:var(--muted)}.gm-sound{font-size:23px;color:#98712d}.gm-narration-actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.gm-audio{max-width:190px}.gm-player-bottom{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:20px;flex-wrap:wrap}.gm-below-player{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;padding:16px;background:#fff;border:1px solid var(--line);border-radius:14px}.gm-below-player p{margin:4px 0}.gm-activity{background:#fff9eb;border:1px solid #efdfb9;border-radius:14px;padding:16px;margin-top:20px}.gm-activity h3{margin:7px 0 12px}.gm-choice{display:block;width:100%;text-align:left;background:#fff;border:1px solid #e5d9bd;border-radius:9px;padding:11px 13px;margin:7px 0;cursor:pointer;color:var(--ink)}.gm-choice:hover{border-color:var(--gold)}.gm-choice:disabled{opacity:.7}.gm-slide-feedback{margin-top:9px;font-weight:700}.gm-correct{color:#176044}.gm-incorrect{color:#9b3b30}.gm-studio-head{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:18px}.gm-studio-head h1{margin:4px 0;font-size:30px;color:var(--navy)}.gm-studio-card{padding:clamp(16px,3vw,26px)}.gm-editor-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.gm-editor-grid>div{min-width:0}.gm-slides-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:25px 0 12px}.gm-slides-header h3{margin:0}.gm-slides-header p{margin:2px 0}.gm-slide-editor,.gm-question-editor{border:1px solid var(--line);border-radius:13px;padding:15px;margin:12px 0;background:#fbfcfe}.gm-slide-editor label,.gm-question-editor label{margin-top:9px}.gm-activity-builder{margin-top:13px;padding:12px;background:#fff8e8;border-radius:10px}.gm-activity-builder summary{font-weight:750;cursor:pointer}.gm-assessment-builder{margin-top:20px;padding:16px}.gm-assessment-builder h3{margin-top:0}.gm-studio-card input,.gm-studio-card textarea,.gm-studio-card select{max-width:100%}.gm-studio-card textarea{resize:vertical}.gm-remove-slide{font-size:12px}.gm-player a{color:#8a641f;font-weight:700}@media(max-width:700px){.gm-slide-grid{grid-template-columns:1fr;gap:18px}.gm-slide-visual{min-height:190px}.gm-editor-grid{grid-template-columns:1fr}.gm-player-bottom .muted{display:none}.gm-narration-actions{width:100%}.gm-audio{max-width:100%;width:100%}}`;
+ let style=document.createElement('style');style.textContent=css;document.head.appendChild(style);
+})();
+</script>
+</body></html>');w.document.close()}
 view('home');
 </script>
 <script>
