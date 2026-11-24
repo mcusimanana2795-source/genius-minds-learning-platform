@@ -73,7 +73,7 @@ function printTutorResults(){let rows=db.attempts.slice().reverse().map(a=>'<tr>
    {title:'Understand the concept',body:c.explain||'Read the explanation carefully.',narration:c.explain||c.concept,language:lang},
    {title:'Look at the examples',body:c.examples||'Think of an example of this concept.',narration:'Here are some examples. '+(c.examples||''),language:lang},
    {title:'Remember this',body:c.tip||'Explain the key idea in your own words.',narration:'Remember. '+(c.tip||''),language:lang},
-   {title:'Check your understanding',body:'Before you continue, think about the main idea. Then complete the assessment for this lesson.',narration:'You have reached the end of the explanation. Complete the assessment when you are ready.',language:lang}
+   {title:'Check your understanding',body:'Before you continue, think about the main idea. Then complete this quick interactive check and the full assessment.',narration:'You have reached the end of the explanation. Try this quick question, then complete the assessment when you are ready.',language:lang,activity:{prompt:'Which statement best describes '+c.concept+'?',options:[c.explain||'The main idea explained in this lesson.','It is unrelated to the topic.','It has no meaning or use.'],correct:0,feedback:'Correct! You have identified the main idea.',tryAgain:'Read the explanation slide again and try once more.'}}
   ];
  }
  function setNav(){
@@ -119,7 +119,7 @@ function printTutorResults(){let rows=db.attempts.slice().reverse().map(a=>'<tr>
  window.gmGoSlide=function(delta){
   let slides=current.slides&&current.slides.length?current.slides:defaultSlides(current);
   if(playerIndex+delta>=slides.length){stopVoice();if(confirm('You have reached the end of this lesson. Would you like to start the assessment now?'))startTest();return}
-  playerIndex=Math.max(0,Math.min(slides.length-1,playerIndex+delta));renderPlayer();
+  playerIndex=Math.max(0,Math.min(slides.length-1,playerIndex+delta));renderPlayer();window.gmSpeakSlide(playerIndex);
  };
  window.gmCheckSlideAnswer=function(index){
   let a=current.slides?.[playerIndex]?.activity,box=$('gm-slide-feedback');if(!a||!box)return;
@@ -128,7 +128,7 @@ function printTutorResults(){let rows=db.attempts.slice().reverse().map(a=>'<tr>
   box.textContent=ok?(a.feedback||'Correct! Well done.'):(a.tryAgain||'Not quite. Review the slide and try again.');
   if(ok)document.querySelectorAll('.gm-choice').forEach(b=>b.disabled=true);
  };
- window.renderLesson=function(){playerIndex=0;playerSlideQuiz={};renderPlayer()};
+ window.renderLesson=function(){playerIndex=0;playerSlideQuiz={};renderPlayer();setTimeout(()=>window.gmSpeakSlide(0),180)};
  window.speak=function(text){if(!('speechSynthesis'in window))return alert('Voice narration is not supported.');stopVoice();let u=new SpeechSynthesisUtterance(text);u.lang=/\b(die|en|nie|hond|boek|skool)\b/i.test(text)?'af-ZA':'en-ZA';u.rate=.9;speechSynthesis.speak(u)};
  function slideEditor(s,i){
   return '<div class="gm-slide-editor" data-slide="'+i+'"><div class="row"><b>Slide '+(i+1)+'</b><button type="button" class="btn light gm-remove-slide">Remove slide</button></div>'+
@@ -184,7 +184,7 @@ function printTutorResults(){let rows=db.attempts.slice().reverse().map(a=>'<tr>
    if(c){let i=data.customCourses.findIndex(x=>x.id===c.id);data.customCourses[i]=item}else data.customCourses.push(item);
    writeDB(data);alert('Interactive lesson saved. It is now available in the learning library on this device.');renderStudio();
   };
-  $('gm-preview-draft').onclick=()=>{let draft=collectSlides();if(!draft.length)return alert('Add at least one slide.');current={grade:+$('gm-grade').value,subject:$('gm-subject').value||'Preview',term:+$('gm-term').value,concept:$('gm-title').value||'Lesson preview',explain:'',examples:'',tip:'',slides:draft,assessment:[]};playerIndex=0;renderPlayer()};
+  $('gm-preview-draft').onclick=()=>{let draft=collectSlides();if(!draft.length)return alert('Add at least one slide.');current={grade:+$('gm-grade').value,subject:$('gm-subject').value||'Preview',term:+$('gm-term').value,concept:$('gm-title').value||'Lesson preview',explain:'',examples:'',tip:'',slides:draft,assessment:[]};playerIndex=0;renderPlayer();window.gmSpeakSlide(0)};
   if($('gm-cancel'))$('gm-cancel').onclick=()=>renderStudio();
   document.querySelectorAll('[data-gm-edit]').forEach(b=>b.onclick=()=>renderStudio(b.dataset.gmEdit));
   document.querySelectorAll('[data-gm-delete]').forEach(b=>b.onclick=()=>{if(!confirm('Delete this lesson? Existing assessment results will remain.'))return;let data=readDB();data.customCourses=(data.customCourses||[]).filter(x=>x.id!==b.dataset.gmDelete);writeDB(data);renderStudio()});
